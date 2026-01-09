@@ -255,7 +255,7 @@ class QwenRelationSelector:
         """Format the path history for the prompt."""
         if not beam.path:
             return "(Starting position - no previous steps)"
-        return f"<PATH> {beam.path_to_string()} </PATH>"
+        return beam.path_to_string()
 
     def _format_relations(self, relations: List[str]) -> str:
         """Format available relations for the prompt."""
@@ -473,7 +473,7 @@ class QwenEntitySelector:
     def _format_path(self, beam: BeamState) -> str:
         if not beam.path:
             return "(Starting position)"
-        return f"<PATH> {beam.path_to_string()} </PATH>"
+        return beam.path_to_string()
 
     def _format_entities(self, entities: List[str]) -> str:
         if not entities:
@@ -694,7 +694,7 @@ class QwenTerminationPredictor:
     def _format_path(self, beam: BeamState) -> str:
         if not beam.path:
             return f"(Starting at {beam.current_entity})"
-        return f"<PATH> {beam.path_to_string()} </PATH>"
+        return beam.path_to_string()
 
     def _build_prompt(self, question: str, beam: BeamState) -> str:
         user_prompt = TERMINATION_PREDICTOR_USER_TEMPLATE.format(

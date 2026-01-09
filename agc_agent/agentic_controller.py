@@ -33,11 +33,7 @@ class TerminationResult:
 # Prompt Templates
 # =============================================================================
 
-RELATION_SELECTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent specialized in navigating structured knowledge graphs to answer questions. Your task is to select the most promising relation to follow at each step of the reasoning process.
-
-You must ONLY select from the available relations listed. Any relation not in the list does not exist for the current entity in the knowledge graph.
-
-Output ONLY the selected relation name exactly as it appears in the available list, with no additional text."""
+RELATION_SELECTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent specialized in navigating structured knowledge graphs to answer questions. Your task is to select the most promising relation to follow at each step of the reasoning process."""
 
 
 RELATION_SELECTOR_USER_TEMPLATE = """# Question:
@@ -57,11 +53,7 @@ RELATION_SELECTOR_USER_TEMPLATE = """# Question:
 # Selected Relation:"""
 
 
-ENTITY_SELECTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent. Given a reasoning path and a selected relation, your task is to choose the target entity that is most likely to lead toward answering the question.
-
-You must ONLY select from the available target entities listed. Do NOT invent or suggest entities not in the list.
-
-Output ONLY the selected entity name exactly as it appears in the available list, with no additional text."""
+ENTITY_SELECTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent. Given a reasoning path and a selected relation, your task is to choose the target entity that is most likely to lead toward answering the question."""
 
 
 ENTITY_SELECTOR_USER_TEMPLATE = """# Question:
@@ -81,17 +73,6 @@ From entity "{current_entity}", following relation [{selected_relation}]
 
 # Selected Entity:"""
 
-
-# TERMINATION_PREDICTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent evaluating whether to continue exploration or stop.
-
-# You must decide one of three actions:
-# 1. ANSWER: The current entity is the TYPE of thing the question asks for. Stop here.
-# 2. CONTINUE: The current entity is an intermediate step, not the answer type. Keep exploring.
-# 3. BACKTRACK: The current path is unlikely to lead to the answer. Go back.
-
-# KEY PRINCIPLE: If the question asks for a specific TYPE of entity (person, place, language, date, etc.), check if the current entity matches that type.
-
-# Output exactly one word: ANSWER, CONTINUE, or BACKTRACK."""
 
 
 TERMINATION_PREDICTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent evaluating whether to continue exploration, backtrack or stop.
@@ -154,7 +135,7 @@ class RelationSelector:
         """Format the path history for the prompt."""
         if not beam.path:
             return "(Starting position - no previous steps)"
-        return f"<PATH> {beam.path_to_string()} </PATH>"
+        return beam.path_to_string()
 
     def _format_relations(self, relations: List[str]) -> str:
         """Format available relations for the prompt."""
@@ -381,7 +362,7 @@ class EntitySelector:
         """Format the path history for the prompt."""
         if not beam.path:
             return "(Starting position)"
-        return f"<PATH> {beam.path_to_string()} </PATH>"
+        return beam.path_to_string()
 
     def _format_entities(self, entities: List[str]) -> str:
         """Format available entities for the prompt."""
@@ -630,7 +611,7 @@ class TerminationPredictor:
         """Format the path for the prompt."""
         if not beam.path:
             return f"(Starting at {beam.current_entity})"
-        return f"<PATH> {beam.path_to_string()} </PATH>"
+        return beam.path_to_string()
 
     def _build_prompt(self, question: str, beam: BeamState) -> str:
         """Build the prompt for termination prediction."""

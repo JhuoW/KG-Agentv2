@@ -12,8 +12,8 @@ DATA_LIST="RoG-webqsp"
 # DATA_LIST="RoG-cwq"
 # DATA_LIST="RoG-webqsp RoG-cwq"
 
-SPLIT="test[:100]"
-# SPLIT="test"
+# SPLIT="test[:100]"
+SPLIT="test"
 # INDEX_LEN=2 
 INDEX_LEN=2
 
@@ -27,6 +27,9 @@ DTYPE=bf16
 MODEL_PATH=rmanluo/GCR-Meta-Llama-3.1-8B-Instruct   # must be run under `llama3-1-8B` conda environment
 # MODEL_PATH=save_models/FT-Qwen2.5-7B-Instruct
 # MODEL_PATH=meta-llama/Meta-Llama-3.1-8B-Instruct
+# MODEL_PATH=Qwen/Qwen2.5-7B-Instruct
+# MODEL_PATH=Qwen/Qwen3-8B
+# MODEL_PATH=meta-llama/Meta-Llama-3-8B-Instruct
 MODEL_NAME=$(basename "$MODEL_PATH")
 
 # GPU configuration
@@ -169,3 +172,16 @@ done
 # Path Answer F1: 47.279270836679366 
 # Path Answer Precision: 46.75992550992551 
 # Path Answer Recall: 70.43180215500412
+
+# 简化所有prompt
+# Accuracy: 71.59722772869637 
+# Hit: 88.20638820638821 
+# F1: 44.81891029423991 
+# Precision: 43.98768086268086 
+# Recall: 69.06573583065916 
+# Path F1: 41.147272112742364 
+# Path Precision: 41.079959829959826 
+# Path Recall: 61.39081793963209 
+# Path Answer F1: 47.90260624893888 
+# Path Answer Precision: 47.105758355758354 
+# Path Answer Recall: 71.66340808333825

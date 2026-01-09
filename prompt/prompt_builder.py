@@ -2,8 +2,7 @@ from utils.utils import *
 
 
 class PromptBuilder(object):
-    PATH_START_TOKEN = "<PATH>"
-    PATH_END_TOKEN = "</PATH>"
+    # No special tokens needed - using plain text formatting
     # TODO: add more prompt templates
     ZERO_SHOT_PROMPT = ""
     ZERO_SHOT_NO_MORE_THAN_10_PROMPT = ""

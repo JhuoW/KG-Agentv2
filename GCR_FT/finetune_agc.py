@@ -2,8 +2,7 @@
 Fine-tuning script for AGC-Agent (Adaptive Graph-Constrained Agentic Reasoning).
 
 This script fine-tunes meta-llama/Meta-Llama-3.1-8B-Instruct for step-wise
-constrained reasoning with special tokens:
-- <PATH>, </PATH>: for path formatting
+constrained reasoning. No special tokens are required.
 
 The training data is generated from ground-truth paths, creating step-by-step
 examples for relation selection, entity selection, and answer generation.
@@ -37,13 +36,8 @@ from accelerate import Accelerator
 
 dotenv.load_dotenv()
 
-# Special tokens for AGC-Agent
-PATH_START_TOKEN = "<PATH>"
-PATH_END_TOKEN = "</PATH>"
-
-ALL_SPECIAL_TOKENS = [
-    PATH_START_TOKEN, PATH_END_TOKEN
-]
+# No special tokens needed for AGC-Agent
+ALL_SPECIAL_TOKENS = []
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 N_CPUS = (
@@ -137,7 +131,7 @@ PATH_GENERATION_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent. Gi
 
 A reasoning path is a sequence of (entity, relation, entity) triples that form a chain from topic entities to answer entities.
 
-Output paths between <PATH> and </PATH> tags."""
+Output the reasoning path directly, then provide the answer."""
 
 
 PATH_GENERATION_USER_TEMPLATE = """# Question:
@@ -146,11 +140,11 @@ PATH_GENERATION_USER_TEMPLATE = """# Question:
 # Topic Entities:
 {topic_entities}
 
-# Reasoning Path:
-<PATH>"""
+# Reasoning Path:"""
 
 
-PATH_GENERATION_RESPONSE_TEMPLATE = """{path}</PATH>
+PATH_GENERATION_RESPONSE_TEMPLATE = """{path}
+
 # Answer:
 {answer}"""
 
@@ -236,8 +230,8 @@ def path_to_string(path: list) -> str:
 
 
 def format_path_with_tags(path: list) -> str:
-    """Format path with PATH tags."""
-    return f"{PATH_START_TOKEN}{path_to_string(path)}{PATH_END_TOKEN}"
+    """Format path as plain text (no tags)."""
+    return path_to_string(path)
 
 
 def build_graph_from_triples(triples: List) -> Dict[str, Dict[str, List[str]]]:
@@ -292,7 +286,7 @@ def create_relation_selection_sample(
 
     # Format path so far
     if path_so_far:
-        path_str = f"{PATH_START_TOKEN} {path_to_string(path_so_far)} {PATH_END_TOKEN}"
+        path_str = path_to_string(path_so_far)
     else:
         path_str = "(Starting position - no previous steps)"
 
@@ -336,7 +330,7 @@ def create_entity_selection_sample(
 
     # Format path so far
     if path_so_far:
-        path_str = f"{PATH_START_TOKEN} {path_to_string(path_so_far)} {PATH_END_TOKEN}"
+        path_str = path_to_string(path_so_far)
     else:
         path_str = "(Starting position)"
 

@@ -35,9 +35,8 @@ class AGCReasoningModel:
 
     DTYPE = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
 
-    # Special tokens used by AGC-Agent (matching agentic_controller.py)
-    # - <PATH>, </PATH>: for path formatting
-    SPECIAL_TOKENS = ["<PATH>", "</PATH>"]
+    # No special tokens needed - AGC-Agent uses plain text formatting
+    SPECIAL_TOKENS = []
     @staticmethod
     def add_args(parser):
         """Add model-related arguments."""
