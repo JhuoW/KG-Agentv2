@@ -10,7 +10,7 @@ AGC-Agent: Each generated step must be valid given the current position.
 This decomposition transforms an exponential constraint into a sequence of linear constraints.
 """
 
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any
 import torch
 from .kg_index import KGIndex, RelationTokenTrie, EntityTokenTrie
 
@@ -181,17 +181,14 @@ class StepwiseConstrainedDecoding:
     """
     Manages step-wise constrained decoding for the AGC-Agent.
 
-    This class handles the dynamic switching between relation and entity constraints
-    during generation, and provides the prefix_allowed_tokens_fn for HuggingFace's
-    model.generate().
+    This class provides the prefix_allowed_tokens_fn for HuggingFace's
+    model.generate(). Constraints are applied from the start of generation.
     """
 
     def __init__(
         self,
         tokenizer: Any,
-        constraint: Optional[StepConstraint] = None,
-        start_token_id: Optional[int] = None,
-        end_token_id: Optional[int] = None
+        constraint: Optional[StepConstraint] = None
     ):
         """
         Initialize the constrained decoding handler.
@@ -199,59 +196,28 @@ class StepwiseConstrainedDecoding:
         Args:
             tokenizer: HuggingFace tokenizer
             constraint: The active constraint (RelationConstraint or EntityConstraint)
-            start_token_id: Token ID that starts constrained region (e.g., <REL> or <ENT>)
-            end_token_id: Token ID that ends constrained region (e.g., </REL> or </ENT>)
         """
         self.tokenizer = tokenizer
         self.constraint = constraint
-        self.start_token_id = start_token_id
-        self.end_token_id = end_token_id
         self.all_tokens = list(range(len(tokenizer)))
 
-        # Track input length for each batch item
+        # Track input length for each batch item (set by caller before generation)
         self._input_lengths: dict = {}
 
     def set_constraint(self, constraint: StepConstraint) -> None:
         """Update the active constraint."""
         self.constraint = constraint
 
-    def _check_constrained_region(self, sent: torch.Tensor) -> Tuple[bool, int]:
-        """
-        Check if we're inside a constrained region.
-
-        Args:
-            sent: The current token sequence
-
-        Returns:
-            (is_constrained, start_position)
-        """
-        if self.start_token_id is None or self.end_token_id is None:
-            return True, 0
-
-        # Find all start tokens
-        start_positions = torch.where(sent == self.start_token_id)[0]
-        if len(start_positions) == 0:
-            return False, len(sent)
-
-        # Get the last start token position
-        last_start = start_positions[-1].item()
-
-        # Count end tokens after the last start token
-        tokens_after_start = sent[last_start:]
-        end_count = len(torch.where(tokens_after_start == self.end_token_id)[0])
-
-        if end_count == 0:
-            # Inside a constrained region
-            return True, last_start + 1
-        else:
-            # Outside constrained region (after end token)
-            return False, len(sent)
+    def set_input_length(self, batch_id: int, length: int) -> None:
+        """Set the input length for a batch item to track generated tokens."""
+        self._input_lengths[batch_id] = length
 
     def allowed_tokens_fn(self, batch_id: int, sent: torch.Tensor) -> List[int]:
         """
         Callback function for model.generate() to restrict allowed tokens.
 
         This is passed to prefix_allowed_tokens_fn in model.generate().
+        Constraints are applied from the start of generation.
 
         Args:
             batch_id: The batch index
@@ -263,17 +229,14 @@ class StepwiseConstrainedDecoding:
         if self.constraint is None:
             return self.all_tokens
 
-        # Check if we're in a constrained region
-        is_constrained, start_pos = self._check_constrained_region(sent)
+        # Get input length for this batch item (default to 0 if not set)
+        input_length = self._input_lengths.get(batch_id, 0)
 
-        if not is_constrained:
-            return self.all_tokens
-
-        # Get the tokens generated within the constrained region
-        constrained_prefix = sent[start_pos:].tolist()
+        # Get the tokens generated so far (everything after input)
+        generated_prefix = sent[input_length:].tolist()
 
         # Get allowed tokens from the constraint
-        allowed = self.constraint.get_allowed_tokens(constrained_prefix)
+        allowed = self.constraint.get_allowed_tokens(generated_prefix)
 
         if len(allowed) == 0:
             return self.all_tokens
@@ -346,26 +309,20 @@ class ConstraintEngine:
 
     def create_decoding_handler(
         self,
-        constraint: StepConstraint,
-        start_token_id: Optional[int] = None,
-        end_token_id: Optional[int] = None
+        constraint: StepConstraint
     ) -> StepwiseConstrainedDecoding:
         """
         Create a constrained decoding handler for use with model.generate().
 
         Args:
             constraint: The constraint to apply
-            start_token_id: Optional start token for constrained region
-            end_token_id: Optional end token for constrained region
 
         Returns:
             StepwiseConstrainedDecoding handler
         """
         return StepwiseConstrainedDecoding(
             tokenizer=self.tokenizer,
-            constraint=constraint,
-            start_token_id=start_token_id,
-            end_token_id=end_token_id
+            constraint=constraint
         )
 
     def get_valid_relations(self, entity: str) -> List[str]:

@@ -1,16 +1,3 @@
-"""
-Agentic Reasoning Controller for AGC-Agent.
-
-This module orchestrates the step-by-step exploration of the knowledge graph.
-Unlike GCR's single-shot path generation, this module implements a deliberative
-reasoning loop where the LLM makes sequential decisions about how to navigate.
-
-Components:
-- RelationSelector: Select which relation(s) to explore next
-- EntitySelector: Choose which target entity to traverse to
-- TerminationPredictor: Decide whether to continue, answer, or backtrack
-"""
-
 from typing import List, Tuple, Optional, Any, Dict
 from dataclasses import dataclass
 from enum import Enum
@@ -23,7 +10,6 @@ from .kg_index import KGIndex
 
 
 class TerminationAction(Enum):
-    """Possible actions from the termination predictor."""
     ANSWER = "ANSWER"
     CONTINUE = "CONTINUE"
     BACKTRACK = "BACKTRACK"
@@ -31,7 +17,6 @@ class TerminationAction(Enum):
 
 @dataclass
 class SelectionResult:
-    """Result of a selection (relation or entity)."""
     item: str  # The selected relation or entity
     probability: float  # P(item | context)
     raw_output: str = ""  # Raw LLM output for debugging
@@ -39,7 +24,6 @@ class SelectionResult:
 
 @dataclass
 class TerminationResult:
-    """Result of termination prediction."""
     action: TerminationAction
     confidence: float  # P(action | context)
     raw_output: str = ""
@@ -51,18 +35,9 @@ class TerminationResult:
 
 RELATION_SELECTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent specialized in navigating structured knowledge graphs to answer questions. Your task is to select the most promising relation to follow at each step of the reasoning process.
 
-A knowledge graph consists of entities connected by relations, forming triples: (head_entity, relation, tail_entity). For example:
-- (Barack Obama, spouse_of, Michelle Obama) means Barack Obama's spouse is Michelle Obama
-- (USA, president, Joe Biden) means the president of USA is Joe Biden
-
-When selecting a relation, you should consider:
-1. SEMANTIC RELEVANCE: How well does the relation's meaning align with what the question is asking?
-2. PATH PROGRESS: Does this relation move closer to the type of entity the question seeks?
-3. REASONING CHAIN: How does this relation connect to the previous reasoning steps?
-
 You must ONLY select from the available relations listed. Any relation not in the list does not exist for the current entity in the knowledge graph.
 
-Output your selected relation between <REL> and </REL> tags, exactly as it appears in the available list."""
+Output ONLY the selected relation name exactly as it appears in the available list, with no additional text."""
 
 
 RELATION_SELECTOR_USER_TEMPLATE = """# Question:
@@ -79,22 +54,14 @@ RELATION_SELECTOR_USER_TEMPLATE = """# Question:
 # Available Relations from "{current_entity}":
 {available_relations}
 
-# Task:
-Analyze the question and current reasoning state. Select the single best relation to follow that will make progress toward answering the question.
-Consider:
-1. Which relation semantically connects to the question's intent?
-2. Which relation logically continues the reasoning path?
-3. Which relation is likely to reach answer-type entities?
-
-# Selected Relation:
-<REL>"""
+# Selected Relation:"""
 
 
 ENTITY_SELECTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent. Given a reasoning path and a selected relation, your task is to choose the target entity that is most likely to lead toward answering the question.
 
 You must ONLY select from the available target entities listed. Do NOT invent or suggest entities not in the list.
 
-Output your selected entity between <ENT> and </ENT> tags, exactly as it appears in the available list."""
+Output ONLY the selected entity name exactly as it appears in the available list, with no additional text."""
 
 
 ENTITY_SELECTOR_USER_TEMPLATE = """# Question:
@@ -112,28 +79,24 @@ From entity "{current_entity}", following relation [{selected_relation}]
 # Available Target Entities:
 {available_entities}
 
-# Task:
-Select the entity that best continues the reasoning toward the answer.
-Consider:
-1. Which entity's type matches what the question asks for?
-2. Which entity is most semantically relevant to the question?
-3. If multiple entities seem valid, which is most specific?
-
-# Selected Entity:
-<ENT>"""
+# Selected Entity:"""
 
 
-TERMINATION_PREDICTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent evaluating whether to continue exploration or stop.
+# TERMINATION_PREDICTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent evaluating whether to continue exploration or stop.
 
-You must decide one of three actions:
-1. ANSWER: The current entity is the TYPE of thing the question asks for. Stop here.
-2. CONTINUE: The current entity is an intermediate step, not the answer type. Keep exploring.
-3. BACKTRACK: The current path is unlikely to lead to the answer. Go back.
+# You must decide one of three actions:
+# 1. ANSWER: The current entity is the TYPE of thing the question asks for. Stop here.
+# 2. CONTINUE: The current entity is an intermediate step, not the answer type. Keep exploring.
+# 3. BACKTRACK: The current path is unlikely to lead to the answer. Go back.
 
-KEY PRINCIPLE: If the question asks for a specific TYPE of entity (person, place, language, date, etc.), check if the current entity matches that type.
+# KEY PRINCIPLE: If the question asks for a specific TYPE of entity (person, place, language, date, etc.), check if the current entity matches that type.
+
+# Output exactly one word: ANSWER, CONTINUE, or BACKTRACK."""
+
+
+TERMINATION_PREDICTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent evaluating whether to continue exploration, backtrack or stop.
 
 Output exactly one word: ANSWER, CONTINUE, or BACKTRACK."""
-
 
 TERMINATION_PREDICTOR_USER_TEMPLATE = """# Question:
 {question}
@@ -142,17 +105,6 @@ TERMINATION_PREDICTOR_USER_TEMPLATE = """# Question:
 {path_so_far}
 
 # Current Entity: {current_entity}
-
-# Evaluate the current state:
-
-First, identify what TYPE of entity the question asks for.
-Then, check if "{current_entity}" is that type of entity.
-
-1. ANSWER: Choose this if "{current_entity}" is the TYPE of entity the question asks for.
-
-2. CONTINUE: Choose this if "{current_entity}" is an intermediate step, not the answer type.
-
-3. BACKTRACK: Choose this if the reasoning has gone in a wrong direction.
 
 # Decision (ANSWER/CONTINUE/BACKTRACK):"""
 
@@ -198,10 +150,6 @@ class RelationSelector:
         self.top_k = top_k
         self.generation_mode = generation_mode
 
-        # Special tokens for constrained region
-        self.rel_start_token = "<REL>"
-        self.rel_end_token = "</REL>"
-
     def _format_path(self, beam: BeamState) -> str:
         """Format the path history for the prompt."""
         if not beam.path:
@@ -245,16 +193,23 @@ class RelationSelector:
 
     def _parse_relation(self, output: str, valid_relations: List[str]) -> Optional[str]:
         """Parse the selected relation from LLM output."""
-        # Try to extract from <REL>...</REL> tags
-        match = re.search(r'<REL>\s*([^<]+?)\s*</REL>', output, re.IGNORECASE)
-        if match:
-            relation = match.group(1).strip()
-            if relation in valid_relations:
-                return relation
+        # Clean up output
+        output = output.strip()
+
+        # First try exact match (model outputs just the relation name)
+        if output in valid_relations:
+            return output
+
+        # Try first line (in case of multi-line output)
+        first_line = output.split('\n')[0].strip()
+        if first_line in valid_relations:
+            return first_line
 
         # Fallback: check if any valid relation appears in output
+        # Sort by length (longest first) to match most specific relation
+        sorted_relations = sorted(valid_relations, key=len, reverse=True)
         output_lower = output.lower()
-        for rel in valid_relations:
+        for rel in sorted_relations:
             if rel.lower() in output_lower:
                 return rel
 
@@ -306,18 +261,12 @@ class RelationSelector:
         if self.use_constrained_generation:
             constraint = self.constraint_engine.create_relation_constraint(beam.current_entity)
             if constraint:
-                # Get start/end token IDs
-                start_id = self.tokenizer.convert_tokens_to_ids(self.rel_start_token)
-                end_id = self.tokenizer.convert_tokens_to_ids(self.rel_end_token)
-
-                if start_id != self.tokenizer.unk_token_id:
-                    handler = StepwiseConstrainedDecoding(
-                        tokenizer=self.tokenizer,
-                        constraint=constraint,
-                        start_token_id=start_id,
-                        end_token_id=end_id
-                    )
-                    prefix_allowed_fn = handler.allowed_tokens_fn
+                # Apply constraints from the start of generation (no special tokens needed)
+                handler = StepwiseConstrainedDecoding(
+                    tokenizer=self.tokenizer,
+                    constraint=constraint
+                )
+                prefix_allowed_fn = handler.allowed_tokens_fn
 
         # Generate with the specified generation mode (aligned with GCR config)
         num_return = min(self.top_k, len(unvisited_relations))
@@ -326,7 +275,7 @@ class RelationSelector:
         gen_kwargs = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
-            "max_new_tokens": 1024,
+            "max_new_tokens": 64,  # Reduced from 1024 - relation names are short
             "prefix_allowed_tokens_fn": prefix_allowed_fn,
             "pad_token_id": self.tokenizer.eos_token_id,
             "return_dict_in_generate": True,
@@ -428,10 +377,6 @@ class EntitySelector:
         self.max_entities_in_prompt = max_entities_in_prompt
         self.generation_mode = generation_mode
 
-        # Special tokens
-        self.ent_start_token = "<ENT>"
-        self.ent_end_token = "</ENT>"
-
     def _format_path(self, beam: BeamState) -> str:
         """Format the path history for the prompt."""
         if not beam.path:
@@ -483,16 +428,23 @@ class EntitySelector:
 
     def _parse_entity(self, output: str, valid_entities: List[str]) -> Optional[str]:
         """Parse the selected entity from LLM output."""
-        # Try to extract from <ENT>...</ENT> tags
-        match = re.search(r'<ENT>\s*([^<]+?)\s*</ENT>', output, re.IGNORECASE)
-        if match:
-            entity = match.group(1).strip()
-            if entity in valid_entities:
-                return entity
+        # Clean up output
+        output = output.strip()
+
+        # First try exact match (model outputs just the entity name)
+        if output in valid_entities:
+            return output
+
+        # Try first line (in case of multi-line output)
+        first_line = output.split('\n')[0].strip()
+        if first_line in valid_entities:
+            return first_line
 
         # Fallback: check if any valid entity appears in output
+        # Sort by length (longest first) to match most specific entity
+        sorted_entities = sorted(valid_entities, key=len, reverse=True)
         output_lower = output.lower()
-        for ent in valid_entities:
+        for ent in sorted_entities:
             if ent.lower() in output_lower:
                 return ent
 
@@ -558,17 +510,12 @@ class EntitySelector:
                 beam.current_entity, selected_relation
             )
             if constraint:
-                start_id = self.tokenizer.convert_tokens_to_ids(self.ent_start_token)
-                end_id = self.tokenizer.convert_tokens_to_ids(self.ent_end_token)
-
-                if start_id != self.tokenizer.unk_token_id:
-                    handler = StepwiseConstrainedDecoding(
-                        tokenizer=self.tokenizer,
-                        constraint=constraint,
-                        start_token_id=start_id,
-                        end_token_id=end_id
-                    )
-                    prefix_allowed_fn = handler.allowed_tokens_fn
+                # Apply constraints from the start of generation (no special tokens needed)
+                handler = StepwiseConstrainedDecoding(
+                    tokenizer=self.tokenizer,
+                    constraint=constraint
+                )
+                prefix_allowed_fn = handler.allowed_tokens_fn
 
         # Generate with the specified generation mode (aligned with GCR config)
         num_return = min(self.top_k, len(valid_entities))
@@ -857,7 +804,8 @@ class AgenticController:
         self,
         question: str,
         topic_entities: List[str],
-        beam: BeamState
+        beam: BeamState,
+        skip_termination_at_depth_zero: bool = True
     ) -> Tuple[TerminationResult, List[BeamState]]:
         """
         Perform one reasoning step.
@@ -866,6 +814,7 @@ class AgenticController:
             question: The natural language question
             topic_entities: Topic entities from the question
             beam: Current beam state
+            skip_termination_at_depth_zero: Skip termination check at depth 0 (always continue)
 
         Returns:
             (termination_result, new_beams)
@@ -873,8 +822,16 @@ class AgenticController:
             - If CONTINUE: new_beams contains extended beams
             - If BACKTRACK: new_beams contains the backtracked beam (or empty)
         """
-        # First, check termination
-        term_result = self.termination_predictor.predict(question, beam)
+        # At depth 0, skip termination check - always continue from starting entities
+        if skip_termination_at_depth_zero and beam.depth == 0:
+            term_result = TerminationResult(
+                action=TerminationAction.CONTINUE,
+                confidence=1.0,
+                raw_output="[Skipped at depth 0]"
+            )
+        else:
+            # Check termination via LLM
+            term_result = self.termination_predictor.predict(question, beam)
 
         if term_result.action == TerminationAction.ANSWER:
             if self.termination_predictor.should_answer(term_result):

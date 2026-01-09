@@ -568,7 +568,7 @@ class PathAccumulator:
         # Build prompt for answer extraction
         system_prompt = """You are a Knowledge Graph reasoning assistant. Given a question and a reasoning path, identify which entity in the path answers the question.
 
-The answer must be one of the entities in the path. Choose the entity whose TYPE matches what the question asks for."""
+The answer must be one of the entities in the path. """
 
         entities_str = "\n".join(f"- {e}" for e in entities)
         user_prompt = f"""Question: {question}

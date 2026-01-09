@@ -4,8 +4,6 @@ Fine-tuning script for AGC-Agent (Adaptive Graph-Constrained Agentic Reasoning).
 This script fine-tunes meta-llama/Meta-Llama-3.1-8B-Instruct for step-wise
 constrained reasoning with special tokens:
 - <PATH>, </PATH>: for path formatting
-- <REL>, </REL>: for relation selection
-- <ENT>, </ENT>: for entity selection
 
 The training data is generated from ground-truth paths, creating step-by-step
 examples for relation selection, entity selection, and answer generation.
@@ -42,15 +40,9 @@ dotenv.load_dotenv()
 # Special tokens for AGC-Agent
 PATH_START_TOKEN = "<PATH>"
 PATH_END_TOKEN = "</PATH>"
-REL_START_TOKEN = "<REL>"
-REL_END_TOKEN = "</REL>"
-ENT_START_TOKEN = "<ENT>"
-ENT_END_TOKEN = "</ENT>"
 
 ALL_SPECIAL_TOKENS = [
-    PATH_START_TOKEN, PATH_END_TOKEN,
-    REL_START_TOKEN, REL_END_TOKEN,
-    ENT_START_TOKEN, ENT_END_TOKEN
+    PATH_START_TOKEN, PATH_END_TOKEN
 ]
 
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -75,7 +67,7 @@ When selecting a relation, you should consider:
 
 You must ONLY select from the available relations listed. Any relation not in the list does not exist for the current entity in the knowledge graph.
 
-Output your selected relation between <REL> and </REL> tags, exactly as it appears in the available list."""
+Output ONLY the selected relation name exactly as it appears in the available list, with no additional text."""
 
 
 RELATION_SELECTOR_USER_TEMPLATE = """# Question:
@@ -99,18 +91,17 @@ Consider:
 2. Which relation logically continues the reasoning path?
 3. Which relation is likely to reach answer-type entities?
 
-# Selected Relation:
-<REL>"""
+# Selected Relation:"""
 
 
-RELATION_SELECTOR_RESPONSE_TEMPLATE = """{relation}</REL>"""
+RELATION_SELECTOR_RESPONSE_TEMPLATE = """{relation}"""
 
 
 ENTITY_SELECTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent. Given a reasoning path and a selected relation, your task is to choose the target entity that is most likely to lead toward answering the question.
 
 You must ONLY select from the available target entities listed. Do NOT invent or suggest entities not in the list.
 
-Output your selected entity between <ENT> and </ENT> tags, exactly as it appears in the available list."""
+Output ONLY the selected entity name exactly as it appears in the available list, with no additional text."""
 
 
 ENTITY_SELECTOR_USER_TEMPLATE = """# Question:
@@ -135,11 +126,10 @@ Consider:
 2. Which entity is most semantically relevant to the question?
 3. If multiple entities seem valid, which is most specific?
 
-# Selected Entity:
-<ENT>"""
+# Selected Entity:"""
 
 
-ENTITY_SELECTOR_RESPONSE_TEMPLATE = """{entity}</ENT>"""
+ENTITY_SELECTOR_RESPONSE_TEMPLATE = """{entity}"""
 
 
 # Combined prompt for path generation (backward compatible with GCR)

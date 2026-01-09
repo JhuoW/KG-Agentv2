@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.gcr_utils import eval_path_result_w_ans, eval_path_answer, get_truth_paths, filter_invalid_answers, replace_mid_answers_with_path_entity
 from utils.utils import build_graph, path_to_string, load_jsonl
-from agc_agent2 import AGCAgent, AGCAgentConfig, SimplifiedAGCAgent
+from agc_agent import AGCAgent, AGCAgentConfig, SimplifiedAGCAgent
 
 
 class AGCReasoningModel:
@@ -36,11 +36,8 @@ class AGCReasoningModel:
     DTYPE = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
 
     # Special tokens used by AGC-Agent (matching agentic_controller.py)
-    # - <REL>, </REL>: for relation selection
-    # - <ENT>, </ENT>: for entity selection
     # - <PATH>, </PATH>: for path formatting
-    SPECIAL_TOKENS = ["<REL>", "</REL>", "<ENT>", "</ENT>", "<PATH>", "</PATH>"]
-    print("SPECIAL_TOKENS:", SPECIAL_TOKENS)
+    SPECIAL_TOKENS = ["<PATH>", "</PATH>"]
     @staticmethod
     def add_args(parser):
         """Add model-related arguments."""

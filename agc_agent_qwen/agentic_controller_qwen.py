@@ -45,7 +45,7 @@ When selecting a relation, you should consider:
 
 You must ONLY select from the available relations listed. Any relation not in the list does not exist for the current entity in the knowledge graph.
 
-Output your selected relation between <REL> and </REL> tags, exactly as it appears in the available list."""
+Output ONLY the selected relation name exactly as it appears in the available list, with no additional text."""
 
 
 RELATION_SELECTOR_USER_TEMPLATE = """# Question:
@@ -69,15 +69,14 @@ Consider:
 2. Which relation logically continues the reasoning path?
 3. Which relation is likely to reach answer-type entities?
 
-# Selected Relation:
-<REL>"""
+# Selected Relation:"""
 
 
 ENTITY_SELECTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent. Given a reasoning path and a selected relation, your task is to choose the target entity that is most likely to lead toward answering the question.
 
 You must ONLY select from the available target entities listed. Do NOT invent or suggest entities not in the list.
 
-Output your selected entity between <ENT> and </ENT> tags, exactly as it appears in the available list."""
+Output ONLY the selected entity name exactly as it appears in the available list, with no additional text."""
 
 
 ENTITY_SELECTOR_USER_TEMPLATE = """# Question:
@@ -102,8 +101,7 @@ Consider:
 2. Which entity is most semantically relevant to the question?
 3. If multiple entities seem valid, which is most specific?
 
-# Selected Entity:
-<ENT>"""
+# Selected Entity:"""
 
 
 TERMINATION_PREDICTOR_SYSTEM_PROMPT = """You are a Knowledge Graph Reasoning Agent evaluating whether to continue exploration or stop.
@@ -253,10 +251,6 @@ class QwenRelationSelector:
         self.top_k = top_k
         self.generation_mode = generation_mode
 
-        # Special tokens for constrained region
-        self.rel_start_token = "<REL>"
-        self.rel_end_token = "</REL>"
-
     def _format_path(self, beam: BeamState) -> str:
         """Format the path history for the prompt."""
         if not beam.path:
@@ -320,16 +314,19 @@ class QwenRelationSelector:
         # Clean Qwen3-specific tokens first
         output = self._clean_qwen_output(output)
 
-        # Try to extract from <REL>...</REL> tags
-        match = re.search(r'<REL>\s*([^<]+?)\s*</REL>', output, re.IGNORECASE)
-        if match:
-            relation = match.group(1).strip()
-            if relation in valid_relations:
-                return relation
-            # Try case-insensitive match
-            for rel in valid_relations:
-                if rel.lower() == relation.lower():
-                    return rel
+        # First try exact match (model outputs just the relation name)
+        if output in valid_relations:
+            return output
+
+        # Try first line (in case of multi-line output)
+        first_line = output.split('\n')[0].strip()
+        if first_line in valid_relations:
+            return first_line
+
+        # Try case-insensitive exact match
+        for rel in valid_relations:
+            if rel.lower() == output.lower():
+                return rel
 
         # Fallback: check if any valid relation appears in output
         # Sort by length (longest first) to match most specific relation
@@ -376,17 +373,12 @@ class QwenRelationSelector:
         if self.use_constrained_generation:
             constraint = self.constraint_engine.create_relation_constraint(beam.current_entity)
             if constraint:
-                start_id = self.tokenizer.convert_tokens_to_ids(self.rel_start_token)
-                end_id = self.tokenizer.convert_tokens_to_ids(self.rel_end_token)
-
-                if start_id != self.tokenizer.unk_token_id:
-                    handler = StepwiseConstrainedDecoding(
-                        tokenizer=self.tokenizer,
-                        constraint=constraint,
-                        start_token_id=start_id,
-                        end_token_id=end_id
-                    )
-                    prefix_allowed_fn = handler.allowed_tokens_fn
+                # Apply constraints from the start of generation (no special tokens needed)
+                handler = StepwiseConstrainedDecoding(
+                    tokenizer=self.tokenizer,
+                    constraint=constraint
+                )
+                prefix_allowed_fn = handler.allowed_tokens_fn
 
         # Generate with Qwen3-specific parameters
         num_return = min(self.top_k, len(unvisited_relations))
@@ -478,9 +470,6 @@ class QwenEntitySelector:
         self.max_entities_in_prompt = max_entities_in_prompt
         self.generation_mode = generation_mode
 
-        self.ent_start_token = "<ENT>"
-        self.ent_end_token = "</ENT>"
-
     def _format_path(self, beam: BeamState) -> str:
         if not beam.path:
             return "(Starting position)"
@@ -546,15 +535,19 @@ class QwenEntitySelector:
         # Clean Qwen3-specific tokens first
         output = self._clean_qwen_output(output)
 
-        match = re.search(r'<ENT>\s*([^<]+?)\s*</ENT>', output, re.IGNORECASE)
-        if match:
-            entity = match.group(1).strip()
-            if entity in valid_entities:
-                return entity
-            # Try case-insensitive match
-            for ent in valid_entities:
-                if ent.lower() == entity.lower():
-                    return ent
+        # First try exact match (model outputs just the entity name)
+        if output in valid_entities:
+            return output
+
+        # Try first line (in case of multi-line output)
+        first_line = output.split('\n')[0].strip()
+        if first_line in valid_entities:
+            return first_line
+
+        # Try case-insensitive exact match
+        for ent in valid_entities:
+            if ent.lower() == output.lower():
+                return ent
 
         # Fallback: check if any valid entity appears in output
         # Sort by length (longest first) to match most specific entity
@@ -603,17 +596,12 @@ class QwenEntitySelector:
                 beam.current_entity, selected_relation
             )
             if constraint:
-                start_id = self.tokenizer.convert_tokens_to_ids(self.ent_start_token)
-                end_id = self.tokenizer.convert_tokens_to_ids(self.ent_end_token)
-
-                if start_id != self.tokenizer.unk_token_id:
-                    handler = StepwiseConstrainedDecoding(
-                        tokenizer=self.tokenizer,
-                        constraint=constraint,
-                        start_token_id=start_id,
-                        end_token_id=end_id
-                    )
-                    prefix_allowed_fn = handler.allowed_tokens_fn
+                # Apply constraints from the start of generation (no special tokens needed)
+                handler = StepwiseConstrainedDecoding(
+                    tokenizer=self.tokenizer,
+                    constraint=constraint
+                )
+                prefix_allowed_fn = handler.allowed_tokens_fn
 
         num_return = min(self.top_k, len(valid_entities))
 
