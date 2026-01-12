@@ -573,12 +573,12 @@ The answer must be one of the entities in the path. """
         entities_str = "\n".join(f"- {e}" for e in entities)
         user_prompt = f"""Question: {question}
 
-Reasoning Path: {path_str}
+# Reasoning Path: {path_str}
 
-Entities in path:
+# Entities in path:
 {entities_str}
 
-Which entity answers the question? Output only the entity name, nothing else."""
+# Selected Answer Entity:"""
 
         messages = [
             {"role": "system", "content": system_prompt},
