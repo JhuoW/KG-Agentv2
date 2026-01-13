@@ -25,9 +25,83 @@ import datetime
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from utils.gcr_utils import eval_path_result_w_ans, eval_path_answer, get_truth_paths, filter_invalid_answers, replace_mid_answers_with_path_entity
+from utils.gcr_utils import eval_path_result_w_ans, eval_path_answer, get_truth_paths, filter_invalid_answers, replace_mid_answers_with_path_entity, normalize, match
 from utils.utils import build_graph, path_to_string, load_jsonl
 from agc_agent import AGCAgent, AGCAgentConfig, SimplifiedAGCAgent
+
+
+def extract_answer_from_prediction(prediction: str) -> str:
+    """
+    Extract the answer from a prediction string.
+
+    Args:
+        prediction: Prediction string in format "# Reasoning Path:\n...\n# Answer:\n<answer>"
+
+    Returns:
+        The extracted answer string
+    """
+    if "# Answer:\n" in prediction:
+        return prediction.split("# Answer:\n")[-1].strip()
+    elif "# Answer:" in prediction:
+        return prediction.split("# Answer:")[-1].strip()
+    return ""
+
+
+def check_answer_correctness(answer: str, ground_truth: List[str]) -> bool:
+    """
+    Check if an answer matches any of the ground truth answers.
+
+    Uses the same matching logic as the evaluation functions.
+
+    Args:
+        answer: The predicted answer
+        ground_truth: List of ground truth answers
+
+    Returns:
+        True if the answer matches any ground truth, False otherwise
+    """
+    for gt in ground_truth:
+        if match(answer, gt):
+            return True
+    return False
+
+
+def build_scores_dict(
+    predictions: List[str],
+    raw_paths: List[Tuple[str, float]],
+    ground_truth: List[str]
+) -> dict:
+    """
+    Build a scores dictionary mapping path ranks to confidence scores and correctness.
+
+    Args:
+        predictions: List of formatted prediction strings
+        raw_paths: List of (path_string, score) tuples
+        ground_truth: List of ground truth answers
+
+    Returns:
+        Dict with format: {"1": {"conf": score, "ans": true/false}, ...}
+    """
+    scores = {}
+    for i, pred in enumerate(predictions):
+        rank = str(i + 1)  # 1-indexed rank
+
+        # Get the confidence score from raw_paths (aligned by index)
+        if i < len(raw_paths):
+            conf = raw_paths[i][1]
+        else:
+            conf = 0.0
+
+        # Extract answer and check correctness
+        answer = extract_answer_from_prediction(pred)
+        is_correct = check_answer_correctness(answer, ground_truth)
+
+        scores[rank] = {
+            "conf": conf,
+            "ans": is_correct
+        }
+
+    return scores
 
 
 class AGCReasoningModel:
@@ -163,10 +237,14 @@ def process_sample(
         truth_paths = get_truth_paths(q_entity, a_entity, g)
         ground_paths = [path_to_string(p) for p in truth_paths]
 
+        # Build scores dict with confidence and correctness for each path
+        scores = build_scores_dict(processed_predictions, result.raw_paths, answer)
+
         return {
             "id": sample_id,
             "question": question,  # Use original question in output
             "prediction": processed_predictions,
+            "Scores": scores,
             "ground_truth": answer,
             "ground_truth_paths": ground_paths,
             "reasoning_trace": result.reasoning_trace
