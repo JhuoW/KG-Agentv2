@@ -12,8 +12,8 @@ DATA_LIST="RoG-webqsp"
 # DATA_LIST="RoG-cwq"
 # DATA_LIST="RoG-webqsp RoG-cwq"
 
-SPLIT="test[:100]"
-# SPLIT="test"
+# SPLIT="test[:100]"
+SPLIT="test"
 # INDEX_LEN=2 
 INDEX_LEN=2
 
@@ -44,9 +44,9 @@ GPU_ID="${GPU_ID:-0,1,2}"
 K="10"
 
 # DEFAULT: Maximum accuracy settings
-BEAM_WIDTH=10
-RELATION_TOP_K=3
-ENTITY_TOP_K=3
+# BEAM_WIDTH=10
+# RELATION_TOP_K=3
+# ENTITY_TOP_K=3
 
 # SPEED-OPTIMIZED: Best speed/accuracy trade-off (1.52x speedup, ~2.5% accuracy drop)
 # BEAM_WIDTH=8
@@ -57,6 +57,11 @@ ENTITY_TOP_K=3
 # BEAM_WIDTH=5
 # RELATION_TOP_K=3
 # ENTITY_TOP_K=3
+
+
+BEAM_WIDTH=8
+RELATION_TOP_K=5
+ENTITY_TOP_K=5
 
 # Filter Freebase MID answers: set to "true" to filter out invalid MID answers (m.xxx, g.xxx)
 # FILTER_MID="${FILTER_MID:-false}"

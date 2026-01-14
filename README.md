@@ -38,8 +38,36 @@ Results of GRACE (simplified all prompts):
 |                       | Recall    | 71.66 |
 
 Results of GRACE (more simplier)
-Accuracy: 71.59722772869637 Hit: 88.20638820638821 F1: 44.8403184933701 Precision: 44.0245358995359 Recall: 69.06765536382869 Path F1: 41.147272112742364 Path Precision: 41.079959829959826 Path Recall: 61.39081793963209 Path Answer F1: 47.90260624893888 Path Answer Precision: 47.105758355758354 Path Answer Recall: 71.66340808333825
 
+| Metric Category       | Metric    | Value |
+| --------------------- | --------- | ----- |
+| **Overall**     | Accuracy  | 71.60 |
+|                       | Hit       | 88.21 |
+| **Answer**      | F1        | 44.84 |
+|                       | Precision | 44.02 |
+|                       | Recall    | 69.07 |
+| **Path**        | F1        | 41.15 |
+|                       | Precision | 41.08 |
+|                       | Recall    | 61.39 |
+| **Path Answer** | F1        | 47.90 |
+|                       | Precision | 47.11 |
+|                       | Recall    | 71.66 |
+
+Results of GRACE (set $k_r=k_e=5$):
+
+| Metric Category       | Metric    | Value |
+| --------------------- | --------- | ----- |
+| **Overall**     | Accuracy  | 71.99 |
+|                       | Hit       | 89.07 |
+| **Answer**      | F1        | 49.40 |
+|                       | Precision | 50.99 |
+|                       | Recall    | 69.22 |
+| **Path**        | F1        | 45.80 |
+|                       | Precision | 48.14 |
+|                       | Recall    | 62.21 |
+| **Path Answer** | F1        | 52.61 |
+|                       | Precision | 54.16 |
+|                       | Recall    | 72.05 |
 
 Results of GCR:
 
